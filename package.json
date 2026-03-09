@@ -1,23 +1,27 @@
 {
   "name": "marketbar",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "macOS menu bar market tracker — Stocks, Commodities, Crypto",
-  "author": "MarketBar",
+  "author": "algoq369",
   "license": "MIT",
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "vite",
-    "dev:electron": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev": "concurrently \"node server/index.mjs\" \"vite --config vite.web.config.ts\"",
+    "dev:electron": "concurrently \"node server/index.mjs\" \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "server": "node server/index.mjs",
+    "client": "vite --config vite.web.config.ts",
     "build": "tsc && vite build && electron-builder",
     "build:vite": "tsc && vite build",
     "preview": "vite preview",
     "electron": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder",
-    "postinstall": "electron-builder install-app-deps"
+    "dist": "electron-builder"
   },
   "dependencies": {
-    "electron-store": "^8.1.0"
+    "cors": "^2.8.5",
+    "electron-store": "^8.1.0",
+    "express": "^4.18.2",
+    "node-cache": "^5.1.2"
   },
   "devDependencies": {
     "@types/react": "^18.2.48",
@@ -51,6 +55,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "server/**/*",
       "public/**/*"
     ],
     "directories": {
