@@ -85,7 +85,7 @@ export default function App() {
       <div style={{
         padding: '8px 14px', borderTop: '1px solid rgba(255,255,255,0.04)',
         fontSize: 9, color: '#2d3748', fontFamily: "'JetBrains Mono', monospace", textAlign: 'center', flexShrink: 0,
-      }}>Live crypto via CoinGecko · Traditional simulated · Press ⌘R to refresh</div>
+      }}>Live data · CoinGecko + Yahoo Finance · Backend :3001</div>
 
       {selectedAsset && (
         <AssetDetail asset={selectedAsset} isWatched={watchlist.has(selectedAsset.id)}

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 
 interface TitleBarProps {
   loading: boolean
@@ -7,6 +7,19 @@ interface TitleBarProps {
 }
 
 export const TitleBar: React.FC<TitleBarProps> = ({ loading, lastUpdate, onRefresh }) => {
+  const [backendOk, setBackendOk] = useState(false)
+
+  useEffect(() => {
+    const check = () => {
+      fetch('http://localhost:3001/api/health')
+        .then(r => { setBackendOk(r.ok) })
+        .catch(() => setBackendOk(false))
+    }
+    check()
+    const i = setInterval(check, 30000)
+    return () => clearInterval(i)
+  }, [])
+
   return (
     <div style={{
       height: 48, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -16,6 +29,15 @@ export const TitleBar: React.FC<TitleBarProps> = ({ loading, lastUpdate, onRefre
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 15, fontWeight: 800, color: '#34d399', fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1 }}>◈</span>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#e5e7eb', letterSpacing: 1.5, fontFamily: "'JetBrains Mono', monospace" }}>MARKETBAR</span>
+        <span style={{
+          fontSize: 8, fontWeight: 700, letterSpacing: 0.5,
+          padding: '2px 6px', borderRadius: 4,
+          color: backendOk ? '#34d399' : '#f87171',
+          background: backendOk ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)',
+          fontFamily: "'JetBrains Mono', monospace",
+        }}>
+          {backendOk ? 'LIVE' : 'OFFLINE'}
+        </span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, WebkitAppRegion: 'no-drag' as any }}>
         {loading ? (
