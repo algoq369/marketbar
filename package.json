@@ -7,9 +7,10 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "concurrently \"node server/index.mjs\" \"vite --config vite.web.config.ts\"",
-    "dev:electron": "concurrently \"node server/index.mjs\" \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev:electron": "concurrently \"node server/index.mjs\" \"vite --config vite.web.config.ts\" \"wait-on http://localhost:5173 && electron .\"",
     "server": "node server/index.mjs",
     "client": "vite --config vite.web.config.ts",
+    "build:electron": "node node_modules/.bin/esbuild electron/main.ts --bundle --platform=node --outfile=dist-electron/main.js --external:electron --external:electron-store && node node_modules/.bin/esbuild electron/preload.ts --bundle --platform=node --outfile=dist-electron/preload.js --external:electron",
     "build": "tsc && vite build && electron-builder",
     "build:vite": "tsc && vite build",
     "preview": "vite preview",
