@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <title>◈ MarketBar — Live Market Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0c0e13; color: #e5e7eb;
+      font-family: 'DM Sans', -apple-system, sans-serif;
+      min-height: 100vh;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+
+    .ticker-bar {
+      background: rgba(15,17,23,0.95); border-bottom: 1px solid rgba(255,255,255,0.06);
+      height: 40px; display: flex; align-items: center; overflow: hidden;
+      position: sticky; top: 0; z-index: 50; backdrop-filter: blur(20px);
+    }
+    .ticker-brand {
+      padding: 0 16px; border-right: 1px solid rgba(255,255,255,0.06);
+      height: 100%; display: flex; align-items: center; flex-shrink: 0;
+    }
+    .ticker-brand span { font: 700 12px 'JetBrains Mono', monospace; color: #34d399; letter-spacing: 1.5px; }
+    .ticker-scroll { flex: 1; overflow: hidden; position: relative; }
+    .ticker-track {
+      display: flex; gap: 0; animation: scroll 40s linear infinite; width: max-content;
+    }
+    @keyframes scroll { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .ticker-item {
+      display: flex; align-items: center; gap: 8px; padding: 0 20px;
+      font: 600 12px 'JetBrains Mono', monospace; white-space: nowrap;
+      border-right: 1px solid rgba(255,255,255,0.04); height: 40px;
+    }
+    .ticker-item .sym { color: #8a8f98; }
+    .ticker-item .price { color: #f0f1f3; font-weight: 700; }
+    .ticker-item .pct { font-size: 11px; }
+    .up { color: #34d399; } .down { color: #f87171; }
+    .ticker-status {
+      padding: 0 16px; border-left: 1px solid rgba(255,255,255,0.06);
+      height: 100%; display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot.live { background: #34d399; box-shadow: 0 0 6px rgba(52,211,153,0.4); }
+    .dot.loading { background: #f59e0b; animation: pulse 1s ease infinite; }
+    .time { font: 500 10px 'JetBrains Mono', monospace; color: #6b7280; }
+
+    .container { max-width: 920px; margin: 0 auto; padding: 24px 20px 60px; }
+    h1 { font: 800 28px 'DM Sans'; color: #f8fafc; letter-spacing: -0.5px; }
+    .subtitle { font: 400 13px 'DM Sans'; color: #6b7280; margin-top: 6px; }
+    .badge { display: inline-block; font: 700 8px 'JetBrains Mono'; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px; margin-left: 8px; }
+    .badge.live { color: #34d399; background: rgba(52,211,153,0.1); }
+
+    .tabs { display: flex; gap: 6px; margin: 20px 0 16px; overflow-x: auto; }
+    .tab {
+      padding: 8px 14px; border-radius: 8px; font: 600 12px 'DM Sans'; cursor: pointer;
+      border: 1px solid transparent; background: rgba(255,255,255,0.03); color: #6b7280;
+      display: flex; align-items: center; gap: 6px; white-space: nowrap; transition: all 0.15s;
+    }
+    .tab.active { color: #f0f1f3; background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.25); }
+    .tab .count {
+      font: 700 9px 'JetBrains Mono'; padding: 1px 6px; border-radius: 5px;
+      background: rgba(255,255,255,0.06); color: #6b7280;
+    }
+    .tab.active .count { background: rgba(52,211,153,0.2); color: #34d399; }
+
+    .header-row {
+      display: grid; grid-template-columns: 1fr 130px 100px 90px;
+      padding: 0 14px 10px; font: 700 10px 'JetBrains Mono'; color: #374151;
+      letter-spacing: 1.2px; text-transform: uppercase;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .asset-row {
+      display: grid; grid-template-columns: 1fr 130px 100px 90px;
+      padding: 12px 14px; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.02);
+      cursor: default; transition: background 0.12s;
+    }
+    .asset-row:hover { background: rgba(255,255,255,0.03); }
+    .asset-name { font: 600 13px 'DM Sans'; color: #f0f1f3; }
+    .asset-sym { font: 600 10px 'JetBrains Mono'; color: #6b7280; letter-spacing: 0.5px; margin-top: 2px; }
+    .asset-price { text-align: right; font: 700 13px 'JetBrains Mono'; color: #f0f1f3; }
+    .asset-pct {
+      text-align: right; display: inline-block; padding: 3px 8px; border-radius: 6px;
+      font: 700 11px 'JetBrains Mono';
+    }
+    .asset-pct.up { color: #34d399; background: rgba(52,211,153,0.1); }
+    .asset-pct.down { color: #f87171; background: rgba(248,113,113,0.1); }
+    .sparkline-cell { display: flex; justify-content: center; }
+
+    .footer {
+      margin-top: 32px; padding: 16px 0; border-top: 1px solid rgba(255,255,255,0.04);
+      display: flex; justify-content: space-between; font: 400 11px 'JetBrains Mono'; color: #2d3748;
+    }
+    .loading-skeleton {
+      height: 48px; border-radius: 8px; margin: 4px 0;
+      background: linear-gradient(90deg, rgba(255,255,255,0.02) 25%, rgba(255,255,255,0.04) 50%, rgba(255,255,255,0.02) 75%);
+      background-size: 200% 100%; animation: shimmer 1.5s ease infinite;
+    }
+    @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+    .github-link { color: #34d399; text-decoration: none; font-weight: 600; }
+    .github-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<!-- TICKER BAR -->
+<div class="ticker-bar">
+  <div class="ticker-brand"><span>◈ MARKETBAR</span></div>
+  <div class="ticker-scroll">
+    <div class="ticker-track" id="ticker"></div>
+  </div>
+  <div class="ticker-status">
+    <div class="dot loading" id="statusDot"></div>
+    <span class="time" id="updateTime">—</span>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="container">
+  <div style="margin-bottom:28px">
+    <h1>Market Tracker <span class="badge live" id="liveBadge">LOADING</span></h1>
+    <p class="subtitle" id="assetCount">Loading market data...</p>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="header-row">
+    <span>Asset</span>
+    <span style="text-align:right">Price</span>
+    <span style="text-align:right">24h</span>
+    <span style="text-align:center">7d</span>
+  </div>
+
+  <div id="assetList"></div>
+
+  <div class="footer">
+    <span>Live data · CoinGecko + Yahoo Finance</span>
+    <span><a class="github-link" href="https://github.com/algoq369/marketbar" target="_blank">GitHub ↗</a></span>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+let allAssets = [];
+let activeFilter = 'all';
+
+const TRAD_META = {
+  sp500:{s:'SPX',n:'S&P 500',c:'indices'},djia:{s:'DJI',n:'Dow Jones',c:'indices'},
+  nasdaq:{s:'NDX',n:'Nasdaq 100',c:'indices'},ftse:{s:'FTSE',n:'FTSE 100',c:'indices'},
+  dax:{s:'DAX',n:'DAX 40',c:'indices'},nikkei:{s:'N225',n:'Nikkei 225',c:'indices'},
+  gold:{s:'XAU',n:'Gold',c:'commodities'},silver:{s:'XAG',n:'Silver',c:'commodities'},
+  'oil-wti':{s:'WTI',n:'Crude Oil WTI',c:'commodities'},'oil-brent':{s:'BRN',n:'Brent Crude',c:'commodities'},
+  natgas:{s:'NG',n:'Natural Gas',c:'commodities'},platinum:{s:'XPT',n:'Platinum',c:'commodities'},
+  palladium:{s:'XPD',n:'Palladium',c:'commodities'},copper:{s:'HG',n:'Copper',c:'commodities'},
+  wheat:{s:'ZW',n:'Wheat',c:'commodities'},corn:{s:'ZC',n:'Corn',c:'commodities'},
+};
+
+function fmtPrice(n){
+  if(n>=10000) return '$'+Math.round(n).toLocaleString();
+  if(n>=1) return '$'+n.toFixed(2);
+  if(n>=0.01) return '$'+n.toFixed(4);
+  return '$'+n.toFixed(6);
+}
+
+function sparklineSVG(data,color,w=70,h=22){
+  if(!data||data.length<2) return '';
+  const mn=Math.min(...data),mx=Math.max(...data),r=mx-mn||1;
+  const pts=data.map((v,i)=>`${(i/(data.length-1))*w},${h-((v-mn)/r)*(h-3)-1.5}`).join(' ');
+  return `<svg width="${w}" height="${h}" style="display:block"><polyline fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" points="${pts}"/></svg>`;
+}
+
+async function load(){
+  document.getElementById('statusDot').className='dot loading';
+  try{
+    const [cRes,tRes]=await Promise.all([
+      fetch(API+'/crypto/markets').then(r=>r.json()).catch(()=>({data:[]})),
+      fetch(API+'/traditional/all').then(r=>r.json()).catch(()=>({data:{}})),
+    ]);
+    allAssets=[];
+    if(tRes.data){
+      Object.entries(tRes.data).forEach(([id,d])=>{
+        const m=TRAD_META[id];
+        if(m&&d.price) allAssets.push({id,sym:m.s,name:m.n,cat:m.c,price:d.price,pct:d.changePercent,spark:d.sparkline||[]});
+      });
+    }
+    if(cRes.data&&Array.isArray(cRes.data)){
+      cRes.data.forEach(c=>{
+        allAssets.push({id:c.id,sym:c.symbol.toUpperCase(),name:c.name,cat:'crypto',price:c.current_price,pct:c.price_change_percentage_24h,spark:c.sparkline_in_7d?.price||[],img:c.image});
+      });
+    }
+    document.getElementById('statusDot').className='dot live';
+    document.getElementById('liveBadge').textContent='LIVE';
+    document.getElementById('updateTime').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    document.getElementById('assetCount').textContent=`${allAssets.length} assets tracked · Stocks · Commodities · Crypto`;
+    renderTabs();
+    renderTicker();
+    render();
+  }catch(e){
+    document.getElementById('statusDot').className='dot';
+    document.getElementById('statusDot').style.background='#f87171';
+    document.getElementById('liveBadge').textContent='ERROR';
+    console.error(e);
+  }
+}
+
+function renderTabs(){
+  const cats=[
+    {k:'all',l:'All Markets',i:'◉'},{k:'indices',l:'Indices',i:'📊'},
+    {k:'commodities',l:'Commodities',i:'🛢️'},{k:'crypto',l:'Crypto',i:'₿'},
+  ];
+  document.getElementById('tabs').innerHTML=cats.map(c=>{
+    const cnt=c.k==='all'?allAssets.length:allAssets.filter(a=>a.cat===c.k).length;
+    return `<div class="tab ${activeFilter===c.k?'active':''}" onclick="setFilter('${c.k}')">${c.i} ${c.l} <span class="count">${cnt}</span></div>`;
+  }).join('');
+}
+
+function setFilter(f){ activeFilter=f; renderTabs(); render(); }
+
+function render(){
+  let list=activeFilter==='all'?allAssets:allAssets.filter(a=>a.cat===activeFilter);
+  list.sort((a,b)=>a.name.localeCompare(b.name));
+  const el=document.getElementById('assetList');
+  if(!list.length){el.innerHTML='<div style="padding:40px;text-align:center;color:#374151">No assets</div>';return;}
+  el.innerHTML=list.map((a,i)=>{
+    const col=a.pct==null?'#6b7280':a.pct>=0?'#34d399':'#f87171';
+    const cls=a.pct>=0?'up':'down';
+    const pctStr=a.pct!=null?(a.pct>=0?'+':'')+a.pct.toFixed(2)+'%':'—';
+    return `<div class="asset-row" style="animation:fadeUp ${0.15+i*0.02}s ease both">
+      <div><div class="asset-name">${a.name}</div><div class="asset-sym">${a.sym}</div></div>
+      <div class="asset-price">${fmtPrice(a.price)}</div>
+      <div style="text-align:right"><span class="asset-pct ${cls}">${pctStr}</span></div>
+      <div class="sparkline-cell">${sparklineSVG(a.spark,col)}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderTicker(){
+  const items=allAssets.slice(0,8);
+  const html=items.map(a=>{
+    const cls=a.pct>=0?'up':'down';
+    const pctStr=a.pct!=null?(a.pct>=0?'+':'')+a.pct.toFixed(2)+'%':'';
+    return `<div class="ticker-item"><span class="sym">${a.sym}</span><span class="price">${fmtPrice(a.price)}</span><span class="pct ${cls}">${pctStr}</span></div>`;
+  }).join('');
+  document.getElementById('ticker').innerHTML=html+html;
+}
+
+load();
+setInterval(load,60000);
+</script>
+</body>
+</html>
