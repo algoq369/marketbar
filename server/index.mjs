@@ -1,9 +1,14 @@
 import express from 'express';
 import cors from 'cors';
 import NodeCache from 'node-cache';
+import { registerZoneRoutes, engineContext } from './lib/zoneRoutes.mjs';
+import { runEvaluationPass } from './lib/evaluate.mjs';
+import { createLogger } from './lib/log.mjs';
+import { classifyError } from './lib/errors.mjs';
 
 const app = express();
-const PORT = 3001;
+const PORT = Number(process.env.PORT) || 3001;
+const pollLog = createLogger('poller');
 
 // Cache: 60s for prices, 300s for metadata
 const priceCache = new NodeCache({ stdTTL: 60 });
@@ -237,6 +242,38 @@ app.get('/api/markets/all', async (_req, res) => {
   }
 });
 
+// ─── Zone-Alert Engine (CRUD + status + evaluate + push register) ───
+registerZoneRoutes(app);
+
+// ─── Price Poller — evaluate enabled zones every 45s ────────────────
+// Local only: Vercel serverless can't run setInterval (see api/index.mjs,
+// which exposes GET /api/zones/evaluate for a cron/pinger instead).
+const POLL_INTERVAL_MS = 45_000;
+let polling = false;
+
+async function pollCycle() {
+  if (polling) {
+    // Previous cycle still running (slow upstream) — skip to avoid overlap.
+    pollLog.warn('previous poll cycle still running, skipping this tick');
+    return;
+  }
+  polling = true;
+  try {
+    await runEvaluationPass(engineContext());
+  } catch (err) {
+    // A pass should never throw (it catches internally), but belt-and-braces:
+    pollLog.error('poll cycle threw', { err: classifyError(err) });
+  } finally {
+    polling = false;
+  }
+}
+
+const pollTimer = setInterval(pollCycle, POLL_INTERVAL_MS);
+// Don't keep the event loop alive solely for the poller.
+if (typeof pollTimer.unref === 'function') pollTimer.unref();
+// Kick one cycle shortly after boot so status is populated quickly.
+setTimeout(pollCycle, 3000).unref?.();
+
 // ─── Start Server ───────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log('');
@@ -248,5 +285,8 @@ app.listen(PORT, () => {
   console.log(`  → Traditional: /api/traditional/all`);
   console.log(`  → Combined:    /api/markets/all`);
   console.log(`  → Alerts:      /api/alerts`);
+  console.log(`  → Zones:       /api/zones  (CRUD, /status, /evaluate)`);
+  console.log(`  → Push reg:    /api/push/register`);
+  console.log(`  → Poller:      every ${POLL_INTERVAL_MS / 1000}s`);
   console.log('');
 });

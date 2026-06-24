@@ -7,3 +7,7 @@ release/
 .env
 .env.local
 .vercel
+
+# Zone-alert engine runtime state (semi-sensitive: push tokens)
+server/zones.json
+server/push-tokens.json

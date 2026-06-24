@@ -1,5 +1,5 @@
 # MARKETBAR — QUICK RESUME
-# Last updated: 2026-06-24 11:59 UTC | + WEBNA V3 coding standards integrated
+# Last updated: 2026-06-24 12:40 UTC | + server-side ZONE-ALERT ENGINE (Phase 1: notify)
 
 ## STATUS: v1.1 — DEPLOYED TO PRODUCTION ✅
 - Production API: https://marketbar.vercel.app/api
@@ -50,11 +50,54 @@ F13 ✅ GitHub public repos (MIT license)
 F14 ✅ Mobile alert engine (13 conditions: price/RSI/MACD/Fib/divergence)
 F15 ✅ Expo push notifications (local)
 F16 ✅ Mobile pointed to production API
+F17 ✅ Server-side ZONE-ALERT ENGINE (Phase 1: notify-only) — see block below
+
+## ZONE-ALERT ENGINE (Phase 1 ✅ — notify-only, money-path-hardened)
+Server polls live prices and fires Expo push when an asset approaches/enters a price zone.
+Built forward-compatible with trade execution: zone.action ('notify'|'trade') + zone.tradeConfig
+(null, // PHASE 2) attach to the SAME zone object later with no rewrite. NO Blofin/trade code yet.
+
+Files (all new, in server/lib/):
+  zoneEngine.mjs   PURE testable core: distanceToZone, classifyZoneState, shouldFire, buildAlertMessage
+  prices.mjs       CoinGecko + CMC fallback + Yahoo; every fetch = withRetry + 8s timeout + breaker + classifyError
+  push.mjs         Expo push send (chunked, self-prunes DeviceNotRegistered tokens)
+  evaluate.mjs     runEvaluationPass (single-flight) + zonesStatus — shared by local poller AND Vercel
+  zoneRoutes.mjs   all endpoints, Zod-validated + rate-limited; mounted by BOTH server/index.mjs & api/index.mjs
+  store.mjs        zones.json + push-tokens.json (crypto.randomBytes ids; atomic writes; /tmp on serverless)
+  schemas.mjs      Zod (upper>lower, approachThreshold 0–50, asset enum, max lengths)
+  retry.mjs errors.mjs  VENDORED stdlib patterns (withRetry/withTimeout, classifyError/isTransientError) — copied, NOT cross-repo imported
+  log.mjs          structured JSON-line logger, redacts key/token-like values
+  circuitBreaker.mjs rateLimit.mjs assets.mjs
+
+Endpoints (local :3001 AND Vercel):
+  GET    /api/zones            POST /api/zones            PUT /api/zones/:id
+  DELETE /api/zones/:id        POST /api/zones/:id/toggle
+  GET    /api/zones/status     live price/state/distance% per zone (dashboard + mobile)
+  GET    /api/zones/evaluate   ONE evaluation pass (Vercel cron / uptime pinger — see below)
+  POST   /api/push/register    store an Expo push token
+
+Local: 45s setInterval poller in server/index.mjs (single-flight + overlap guard). PORT now env-configurable.
+Vercel: serverless CANNOT setInterval → drive GET /api/zones/evaluate on a schedule. PRODUCTION TRIGGER (do at deploy time):
+  - Easiest (any plan): external pinger (cron-job.org / UptimeRobot) → GET /api/zones/evaluate every 1–2 min.
+  - Or Vercel Cron: add `"crons":[{"path":"/api/zones/evaluate","schedule":"*/2 * * * *"}]` (Hobby limits cadence — verify plan).
+  - If EVALUATE_TOKEN is set in Vercel env, the pinger must send `?token=` or `x-evaluate-token` header.
+  - NOTE: file persistence on Vercel is /tmp (per-instance, ephemeral). Durable cross-instance zones need a DB → Phase 2/3.
+
+Env (.env.example, all OPTIONAL for Phase 1): CMC_API_KEY (crypto fallback; skipped if unset, no crash),
+  EVALUATE_TOKEN (guards the evaluate trigger), LOG_LEVEL, ZONES_PATH/PUSH_TOKENS_PATH overrides.
+Tests: `NODE_ENV=development npm test` → 34 Vitest pass (zoneEngine 27 + retry 7). Runtime state (lastState/lastFired)
+  persists to zones.json so transitions are detected across restarts/cold-starts.
+Mobile TODO (not done here): call POST /api/push/register with getExpoPushTokenAsync(); render GET /api/zones/status.
 
 ## REMAINING WORK (priority order)
-NEXT: App icon (.icns + .png), keyboard shortcuts (⌘R, Esc), settings panel
-THEN: Deploy mobile to TestFlight/Expo EAS, portfolio tracking, multiple watchlists
-LATER: Electron auto-updater, macOS widgets, WebSocket live prices
+NEXT (zone engine): wire mobile to register push token + render /api/zones/status; add zone-create UI; production evaluate trigger (pinger/cron).
+PHASE 2 (Blofin READ-ONLY): add BLOFIN_API_KEY/SECRET/PASSPHRASE (T1 server-side only, T7 validate at boot),
+  read account balance + open positions; surface on a zone with action stays 'notify'. NO order placement.
+PHASE 3 (Blofin TRADE EXECUTION): zone.action='trade' + tradeConfig becomes live. REQUIRES, per RESUME standards:
+  T5 server-side re-validation of zone/size/RR/SL against AlgoQ rulebook in the handler; T6 HMAC+timingSafeEqual+timestamp
+  on Blofin responses; T8 explicit per-zone confirm flag (no silent auto-exec); full DEPLOY GATE before any real-money ship.
+THEN: App icon (.icns + .png), keyboard shortcuts (⌘R, Esc), settings panel; mobile TestFlight/EAS; portfolio tracking.
+LATER: Electron auto-updater, macOS widgets, WebSocket live prices.
 
 ## KEY ENV ISSUES
 NODE_ENV=production globally → always use NODE_ENV=development npm install

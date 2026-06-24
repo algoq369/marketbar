@@ -1,7 +1,12 @@
 import express from 'express';
 import cors from 'cors';
+import { registerZoneRoutes } from '../server/lib/zoneRoutes.mjs';
 
 const app = express();
+// Vercel sits one proxy hop in front of the function; trusting it makes req.ip
+// resolve to the real client (from the platform's X-Forwarded-For) for the rate
+// limiter, instead of the proxy address. Exactly one hop — do not trust beyond.
+app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json());
 
@@ -119,5 +124,22 @@ app.delete('/api/alerts/:id', (req, res) => {
   alerts = alerts.filter(a => a.id !== req.params.id);
   res.json({ ok: true });
 });
+
+// ─── Zone-Alert Engine (mirrored from server/index.mjs) ─────────────
+// IMPORTANT: Vercel serverless functions are stateless and CANNOT run a
+// setInterval poller — the process is frozen between requests. So instead of a
+// 45s loop, the deployed engine exposes GET /api/zones/evaluate, which runs ONE
+// evaluation pass per hit. Trigger it on a schedule with Vercel Cron (e.g. add a
+// crons entry to vercel.json) or any uptime pinger (cron-job.org, UptimeRobot).
+// Protect it by setting EVALUATE_TOKEN in the Vercel env (then pass it as the
+// x-evaluate-token header or ?token=).
+//
+// NOTE on persistence: zones.json / push-tokens.json live on the read-only
+// serverless FS, so writes there are best-effort and reset on cold start. For
+// durable multi-instance state, point ZONES_PATH / PUSH_TOKENS_PATH at a
+// writable store or migrate to a DB in a later phase. Each zone carries its
+// own lastState so a single evaluate hit still detects transitions correctly
+// for as long as the instance stays warm.
+registerZoneRoutes(app);
 
 export default app;
